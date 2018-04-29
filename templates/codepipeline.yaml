@@ -1,0 +1,310 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Something
+Parameters:
+  NotificationEmailAddress:
+    Description: Email address to send SNS notifications when the pipeline builds a new AMI
+    Type: String
+    Default: varun.gandhi12@gmail.com
+  GitHubOwner:
+    Type: String
+    Default: gandhivarun
+    Description: GitHub repository owner
+  GitHubRepo:
+    Type: String
+    Default: App
+    Description: GitHub repository name
+  GitHubBranch:
+    Type: String
+    Default: master
+    Description: GitHub repository branch
+  GitHubToken:
+    Type: String
+    Default: 3a2f134cd076a64e7102d6dd43dd4cc938c9d9ce
+    Description: GitHub repository OAuth token
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+  ResourcesS3Bucket:
+    Type: AWS::S3::Bucket
+    
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal: {Service: [codepipeline.amazonaws.com]}
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal: {Service: [codedeploy.amazonaws.com]}
+        Version: '2012-10-17'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataPipelineRole
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+        - arn:aws:iam::aws:policy/AWSCodeDeployDeployerAccess
+        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+  
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal: {Service: [codebuild.amazonaws.com]}
+        Version: '2012-10-17'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+  CodeBuildCWLogsPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "CodeBuildCWLogsPolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Action: 
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogStreams
+              - logs:PutRetentionPolicy
+            Resource: arn:aws:logs:*:*:*
+      Roles: 
+        - !Ref CodeBuildRole
+
+  CodeBuildPackerPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "CodeBuildPackerPolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Action:
+            - ec2:*
+            - sns:Publish
+            Effect: Allow
+            Resource: "*"
+      Roles: 
+        - !Ref CodeBuildRole
+  
+  CodeBuildArtifactsPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "CodeBuildArtifactsPolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Action: 
+              - "s3:ListBucket"
+            Resource: !Sub arn:aws:s3:::${ArtifactBucket}
+          - 
+            Effect: "Allow"
+            Action: 
+              - "s3:List*"
+              - "s3:Get*"
+            Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+      Roles: 
+        - !Ref CodeBuildRole
+
+  CodeBuildPassIAMRolePolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "CodeBuildPassIAMRolePolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Action: 
+              - iam:PassRole
+            Resource: 
+              Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - ':role/'
+                - Ref: EC2Role
+      Roles: 
+        - !Ref CodeBuildRole
+  
+  S3ResourcesPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "S3ResourcesPolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Action: 
+              - "s3:List*"
+            Resource: !Join ['', ['arn:aws:s3:::', !Ref ResourcesS3Bucket ]] 
+          - 
+            Effect: "Allow"
+            Action: 
+              - "s3:Get*"
+              - "s3:List*"
+            Resource: !Join ['', ['arn:aws:s3:::', !Ref ResourcesS3Bucket, '/*' ]] 
+      Roles: 
+        - !Ref EC2Role
+  
+  EC2Role:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+
+  SSMConfigPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "SSMConfigPolicy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Action:
+            - ssm:DescribeAssociation
+            - ssm:GetDeployablePatchSnapshotForInstance
+            - ssm:GetDocument
+            - ssm:GetParameters
+            - ssm:ListAssociations
+            - ssm:ListInstanceAssociations
+            - ssm:PutInventory
+            - ssm:PutComplianceItems
+            - ssm:UpdateAssociationStatus
+            - ssm:UpdateInstanceAssociationStatus
+            - ssm:UpdateInstanceInformation
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ec2messages:AcknowledgeMessage
+            - ec2messages:DeleteMessage
+            - ec2messages:FailMessage
+            - ec2messages:GetEndpoint
+            - ec2messages:GetMessages
+            - ec2messages:SendReply
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ec2:DescribeInstanceStatus
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ds:CreateComputer
+            - ds:DescribeDirectories
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - logs:PutLogEvents
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - s3:ListBucket
+            Resource: arn:aws:s3:::amazon-ssm-packages-*
+      Roles: 
+        - !Ref EC2Role
+
+  IAMProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref EC2Role
+
+  AMINotifierSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: !Ref NotificationEmailAddress
+        Protocol: email
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: MyFirstCBProject
+      Description: "Project to deal with packer AMI creation of a dummy index.html which is the only app code I have"
+      ServiceRole: !GetAtt CodeBuildRole.Arn    #What can CB do
+      Artifacts:   #Output of CB goes to this location
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/ubuntu-base:14.04
+        EnvironmentVariables:
+          - Name: PACKER_IAM_PROFILE
+            Value: !Ref IAMProfile
+          - Name: SNS_TOPIC_ARN
+            Value: !Ref AMINotifierSNSTopic
+      Source:
+        Type: CODEPIPELINE   #Input of CB is this
+        BuildSpec: "codebuild/buildspec.yml"
+      TimeoutInMinutes: 20
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: "MyraGandhi"
+      RoleArn: !GetAtt PipelineRole.Arn
+      RestartExecutionOnUpdate: false
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+      - Name: Source-GitRepo
+        Actions:
+        - Name: Source
+          ActionTypeId:
+            Category: Source
+            Owner: ThirdParty
+            Version: 1
+            Provider: GitHub
+          Configuration:
+            Owner: !Ref GitHubOwner
+            Repo: !Ref GitHubRepo
+            Branch: !Ref GitHubBranch
+            OAuthToken: !Ref GitHubToken
+          OutputArtifacts:
+              - Name: SourceOutput   #CP pulls the code from GIT and keeps it in artifact store with this name "SourceOutput"
+          RunOrder: 1
+      - Name: BuildAMI
+        Actions: 
+          - Name: BuildAction
+            InputArtifacts: 
+              - 
+                Name: SourceOutput   #Refer 7 lines above
+            ActionTypeId: 
+              Category: Build
+              Owner: AWS
+              Version: 1
+              Provider: CodeBuild
+            Configuration: 
+              ProjectName: 
+                Ref: CodeBuildProject     # Project which the CB will build
+            RunOrder: 1
