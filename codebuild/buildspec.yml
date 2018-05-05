@@ -6,7 +6,7 @@ phases:
     commands:
       - echo "Built on commit id ${CODEBUILD_RESOLVED_SOURCE_VERSION}"
       - echo "Installing HashiCorp Packer..."
-      - test -e packer.zip || curl -qL -o packer.zip https://releases.hashicorp.com/packer/1.0.4/packer_1.0.4_linux_amd64.zip && unzip -o packer.zip
+      - curl -qL -o packer.zip https://releases.hashicorp.com/packer/1.0.4/packer_1.0.4_linux_amd64.zip && unzip -o packer.zip
       - echo "Installing jq..."
       - test -e jq || curl -qL -o jq https://stedolan.github.io/jq/download/linux64/jq && chmod +x ./jq
       - echo "Validating ./packer/packerconfig.json"
