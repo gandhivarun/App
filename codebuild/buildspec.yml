@@ -10,7 +10,7 @@ phases:
       - echo "Installing jq..."
       - curl -qL -o jq https://stedolan.github.io/jq/download/linux64/jq && chmod +x ./jq
       - echo "Validating amazon-linux_packer-template.json"
-      - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json
+      - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packerdir/packerconfig.json
       
   build:
     commands:
@@ -25,7 +25,7 @@ phases:
       - aws configure set aws_session_token `./jq -r '.Token' aws_credentials.json`
       - echo "Building HashiCorp Packer template, amazon-linux_packer-template.json"
       #- ./packer build amazon-linux_packer-template.json
-      - ./packer build -color=false -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json | tee build.log
+      - ./packer build -color=false -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packerdir/packerconfig.json | tee build.log
   
   post_build:
     commands:
