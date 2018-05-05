@@ -15,7 +15,6 @@ phases:
       - echo "Validating amazon-linux_packer-template.json"
       - ls -lrt packdir
       - ls -lrt packer*
-      - which packer
       - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" packdir/packconfig.json
       
   build:
