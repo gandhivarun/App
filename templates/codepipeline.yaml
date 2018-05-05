@@ -19,7 +19,6 @@ Parameters:
     Description: GitHub repository branch
   GitHubToken:
     Type: String
-    Default: 3a2f134cd076a64e7102d6dd43dd4cc938c9d9ce
     Description: GitHub repository OAuth token
 Resources:
   ArtifactBucket:

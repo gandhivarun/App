@@ -9,8 +9,8 @@ phases:
       - test -e packer.zip || curl -qL -o packer.zip https://releases.hashicorp.com/packer/1.0.4/packer_1.0.4_linux_amd64.zip && unzip -o packer.zip
       - echo "Installing jq..."
       - test -e jq || curl -qL -o jq https://stedolan.github.io/jq/download/linux64/jq && chmod +x ./jq
-      - echo "Validating ./packer_config/packer-prizmdoc-client.json"
-      - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer_config/packer-prizmdoc-client.json
+      - echo "Validating ./packer/packerconfig.json"
+      - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json
   build:
     commands:
       ### HashiCorp Packer cannot currently obtain the AWS CodeBuild-assigned role and its credentials
@@ -22,8 +22,8 @@ phases:
       - aws configure set aws_access_key_id `./jq -r '.AccessKeyId' aws_credentials.json`
       - aws configure set aws_secret_access_key `./jq -r '.SecretAccessKey' aws_credentials.json`
       - aws configure set aws_session_token `./jq -r '.Token' aws_credentials.json`
-      - echo "Building HashiCorp Packer template, ./packer_config/packer-prizmdoc-client.json"
-      - ./packer build -color=false -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer_config/packer-prizmdoc-client.json | tee build.log
+      - echo "Building HashiCorp Packer template, ./packer/packerconfig.json"
+      - ./packer build -color=false -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json | tee build.log
   post_build:
     commands:
       - egrep "${AWS_REGION}\:\sami\-" build.log | cut -d' ' -f2 > ami_id.txt
