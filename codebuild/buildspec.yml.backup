@@ -1,0 +1,32 @@
+---
+version: 0.2
+#AWS CodeBuild
+phases:
+  pre_build:
+    commands:
+      - echo "Built on commit id ${CODEBUILD_RESOLVED_SOURCE_VERSION}"
+      - echo "Installing HashiCorp Packer..."
+      - echo "Installing jq..."
+      - test -e jq || curl -qL -o jq https://stedolan.github.io/jq/download/linux64/jq && chmod +x ./jq
+      - echo "Validating ./packer/packerconfig.json"
+      - ./packer validate -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json
+  build:
+    commands:
+      ### HashiCorp Packer cannot currently obtain the AWS CodeBuild-assigned role and its credentials
+      ### Manually capture and configure the AWS CLI to provide HashiCorp Packer with AWS credentials
+      ### More info here: https://github.com/mitchellh/packer/issues/4279
+      - echo "Configuring AWS credentials"
+      - curl -qL -o aws_credentials.json http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI > aws_credentials.json
+      - aws configure set region $AWS_REGION
+      - aws configure set aws_access_key_id `./jq -r '.AccessKeyId' aws_credentials.json`
+      - aws configure set aws_secret_access_key `./jq -r '.SecretAccessKey' aws_credentials.json`
+      - aws configure set aws_session_token `./jq -r '.Token' aws_credentials.json`
+      - echo "Building HashiCorp Packer template, ./packer/packerconfig.json"
+      - ./packer build -color=false -var "GITHUB_COMMITID=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -var "IAMPROFILE=${PACKER_IAM_PROFILE}" ./packer/packerconfig.json | tee build.log
+  post_build:
+    commands:
+      - egrep "${AWS_REGION}\:\sami\-" build.log | cut -d' ' -f2 > ami_id.txt
+      # Packer doesn't return non-zero status; we must do that if Packer build failed
+      - test -s ami_id.txt || exit 1
+      - export AMIID=`cat ami_id.txt`
+      - aws sns publish --topic-arn ${SNS_TOPIC_ARN} --subject "New Prizmdoc Client AMI Ready" --message "New AMI with ID ${AMIID} is ready, generated from AWS Code Pipeline."
