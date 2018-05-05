@@ -1,0 +1,68 @@
+{
+  "description": "Build AMI for Deployment",
+  "min_packer_version": "1.0",
+  "variables": {
+    "aws_region": "ap-southeast-2",
+    "key_pair_prefix": "p-infra-packer-ami",
+    "ami_name_prefix": "mrs-prizmdoc",
+    "install_type" : "client",
+    "vpc_id": "vpc-0dea8c5486eda2f7b",
+    "public_subnet_id": "subnet-0a2599622b352dfe7",
+    "GITHUB_COMMITID": "",
+    "IAMPROFILE": ""
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+    "associate_public_ip_address": "true",
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key": "{{user `aws_secret_key`}}",
+    "profile": "{{ user `aws_profile`}}",
+    "region": "{{user `aws_region`}}",
+    "instance_type": "t2.micro",
+    "ssh_username": "ec2-user",
+    "ami_name": "{{user `ami_name_prefix`}}_{{user `install_type`}}_{{timestamp}}_{{user `GITHUB_COMMITID`}}",
+    "encrypt_boot": true,
+    "iam_instance_profile": "{{user `IAMPROFILE`}}",
+    "run_tags": {
+      "Name": "PrizmDoc-{{user `install_type`}}-Packer-AMI",
+      "application": "PrizmDoc-{{user `install_type`}}",
+      "builder": "Packer via AWS CodePipeline"
+    },
+    "source_ami_filter": {
+      "filters": {
+        "virtualization-type": "hvm",
+        "name": "*amzn-ami-hvm-*",
+        "root-device-type": "ebs",
+        "block-device-mapping.volume-type": "standard"
+      },
+      "owners": ["137112412989"],
+      "most_recent": true
+    },
+    "subnet_id": "{{user `public_subnet_id`}}",
+    "tags": {
+      "application": "PrizmDoc-{{user `install_type`}}",
+      "builder": "Packer via AWS CodePipeline"
+    },
+    "temporary_key_pair_name": "{{user `key_pair_prefix`}}-{{timestamp}}",
+    "vpc_id": "{{user `vpc_id`}}"
+  }],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": "sudo mkdir -p /var/www/html"
+    },
+    {
+      "type": "shell",
+      "inline": "sudo chown -R ec2-user:ec2-user /var/www/html"
+    },
+    {
+      "type": "file",
+      "source": "./",
+      "destination": "/var/www/html"
+    },
+    {
+      "type": "shell",
+      "inline": "sudo chown -R apache /var/www/html"
+    }
+  ]
+}
